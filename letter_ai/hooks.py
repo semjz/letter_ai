@@ -5,6 +5,12 @@ app_description = "Generate letter using AI"
 app_email = "saman.malakjan@gmail.com"
 app_license = "mit"
 
+doc_events = {
+    "AI Letter Request": {
+        "on_update": "letter_ai.api.letter_ai.generate_letter"
+    }
+}
+
 # Apps
 # ------------------
 

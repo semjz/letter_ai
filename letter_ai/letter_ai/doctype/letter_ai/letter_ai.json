@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:letter_name",
+ "creation": "2025-08-09 01:47:19.170151",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "letter_name",
+  "letter_type",
+  "sender",
+  "recipient_company",
+  "prompt",
+  "generated_letter"
+ ],
+ "fields": [
+  {
+   "description": "Link to the Employee doctype to fetch sender details",
+   "fieldname": "sender",
+   "fieldtype": "Link",
+   "label": "sender",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "description": "Link to the Company doctype to fetch recipient company details",
+   "fieldname": "recipient_company",
+   "fieldtype": "Link",
+   "label": "Recipient Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "letter_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "type",
+   "options": "Request\nOffer\nConfirmation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "prompt",
+   "fieldtype": "Text",
+   "in_list_view": 1,
+   "label": "prompt",
+   "reqd": 1
+  },
+  {
+   "fieldname": "generated_letter",
+   "fieldtype": "Text Editor",
+   "label": "Generated Letter",
+   "read_only": 1
+  },
+  {
+   "fieldname": "letter_name",
+   "fieldtype": "Data",
+   "label": "Letter Name",
+   "reqd": 1,
+   "unique": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-08-09 21:40:16.045982",
+ "modified_by": "Administrator",
+ "module": "Letter AI",
+ "name": "letter_ai",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Employee"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
