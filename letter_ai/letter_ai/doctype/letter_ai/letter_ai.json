@@ -8,6 +8,7 @@
  "field_order": [
   "letter_name",
   "letter_type",
+  "tone_of_writing",
   "sender",
   "recipient_company",
   "prompt",
@@ -31,10 +32,17 @@
    "reqd": 1
   },
   {
+   "description" : "Tone of the letter",
+   "fieldname": "tone_of_writing",
+   "fieldtype": "Select",
+   "label": "Tone",
+   "options": "Formal\nInformal\nSemi-formal\nPersuasive\nApologetic\nAppreciative\nCautionary",
+   "reqd": 1
+  },
+  {
    "fieldname": "letter_type",
    "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "type",
+   "label": "Type",
    "options": "Request\nOffer\nConfirmation",
    "reqd": 1
   },
@@ -48,8 +56,7 @@
   {
    "fieldname": "generated_letter",
    "fieldtype": "Text Editor",
-   "label": "Generated Letter",
-   "read_only": 1
+   "label": "Generated Letter"
   },
   {
    "fieldname": "letter_name",

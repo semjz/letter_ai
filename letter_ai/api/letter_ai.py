@@ -28,7 +28,7 @@ def generate_letter(docname):
     recipient_company_description = recipient_company.company_description or "No description available"
     # Constructing the prompt with dynamic data from both Employee and Company
     prompt = f"""
-    Write a {doc.letter_type} lette with format below:
+    Write a {doc.letter_type} letter with {doc.tone_of_writing} tone in farsi with format below:
     sender:
     {sender_name}
     {sender_designation}
