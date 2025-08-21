@@ -32,18 +32,18 @@
    "reqd": 1
   },
   {
-   "description" : "Tone of the letter",
+   "description": "Tone of the letter",
    "fieldname": "tone_of_writing",
    "fieldtype": "Select",
    "label": "Tone",
-   "options": "Formal\nInformal\nSemi-formal\nPersuasive\nApologetic\nAppreciative\nCautionary",
+   "options": "رسمی\nاعتراضی\nدرخواستی\nتوضیحی\nاداری\nمتقاعد کننده",
    "reqd": 1
   },
   {
    "fieldname": "letter_type",
    "fieldtype": "Select",
    "label": "Type",
-   "options": "Request\nOffer\nConfirmation",
+   "options": "اطلاعیه\nدرخواست\nدستوری\nاداری\nگزارش\nمعرفی\nگواهی اشتغال به کار\nبارگیری",
    "reqd": 1
   },
   {
