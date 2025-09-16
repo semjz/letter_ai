@@ -11,6 +11,9 @@
   "tone_of_writing",
   "sender",
   "recipient_company",
+  "ref_letter",
+  "ref_date_djalali",
+  "ref_date",
   "prompt",
   "generated_letter"
  ],
@@ -45,6 +48,21 @@
    "label": "Type",
    "options": "اطلاعیه\nدرخواست\nدستوری\nاداری\nگزارش\nمعرفی\nگواهی اشتغال به کار\nبارگیری",
    "reqd": 1
+  },
+  {
+   "fieldname": "ref_letter",
+   "fieldtype": "Data",
+   "label": "Reference Letter"
+  },
+  {
+   "fieldname": "ref_date_djalali",
+   "fieldtype": "Data",
+   "label": "Reference Date djalali"
+  },
+  {
+   "fieldname": "ref_date",
+   "fieldtype": "Date",
+   "label": "Reference Date"
   },
   {
    "fieldname": "prompt",
