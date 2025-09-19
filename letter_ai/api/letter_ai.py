@@ -85,9 +85,6 @@ def generate_moarefi_letter(docname, runtime_values):
     rv = frappe.parse_json(runtime_values) if runtime_values else {}
     if rv is None:
         rv = {}
-    person = rv.get("name").strip()
-    nid = rv.get("national_code").strip()
-    task = rv.get("duty").strip()
     data = {
             "عنوان_جنسیتی": rv.get("gender").strip(),
             "نام": rv.get("name").strip(),
@@ -96,6 +93,20 @@ def generate_moarefi_letter(docname, runtime_values):
            }
 
     letter = render_template("moarefi_letter.j2", data)
+    doc = frappe.get_doc(doctype="letter_ai", name=docname)
+    doc.reload()
+    doc.db_set("generated_letter", letter, notify=True, commit=True)
+
+@frappe.whitelist()
+def generate_gozaresh_letter(docname, runtime_values):
+    rv = frappe.parse_json(runtime_values) if runtime_values else {}
+    if rv is None:
+        rv = {}
+    data = {
+            "نام_گزارش": rv.get("report_name").strip(),
+            "تاریخ_گزارش": rv.get("report_date".strip())
+	   }
+    letter = render_template("gozaresh_letter.j2", data)
     doc = frappe.get_doc(doctype="letter_ai", name=docname)
     doc.reload()
     doc.db_set("generated_letter", letter, notify=True, commit=True)
