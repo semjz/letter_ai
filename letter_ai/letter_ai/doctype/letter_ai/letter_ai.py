@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 from __future__ import annotations
-
+from frappe import _
 import frappe
 from frappe.model.document import Document
 from .djalali_georgian_conversion import (
