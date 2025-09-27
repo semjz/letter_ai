@@ -36,7 +36,7 @@ class letter_ai(Document):
 		else:
 			self.ref_date_djalali = ""   # keep both empty cleanly
 
-		if self.letter_type in ["گزارش", "معرفی", "بارگیری", "گواهی اشتغال به کار"] and not self.prompt:
+		if self.letter_type not in ["گزارش", "معرفی", "بارگیری", "گواهی اشتغال به کار"] and not self.prompt:
 			frappe.throw(_("Prompt is required for letter type: {0}").format(self.letter_type))
 		# Log for debugging
 		logger.info({
