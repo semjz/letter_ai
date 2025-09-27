@@ -16,16 +16,15 @@ frappe.ui.form.on("letter_ai", {
     toggle_field(frm, "prompt");
     toggle_field(frm, "tone_of_writing");
     toggle_field(frm, "ref_letter");
-    toggle_field(frm, "ref_date");
+    toggle_field(frm, "ref_date_djalali");
     toggle_field(frm, "attachments");
-    frm.toggle_display("ref_date", false);
   },
 
   letter_type(frm) {
     toggle_field(frm, "prompt");
     toggle_field(frm, "tone_of_writing");
     toggle_field(frm, "ref_letter");
-    toggle_field(frm, "ref_date");
+    toggle_field(frm, "ref_date_djalali");
     toggle_field(frm, "attachments");
   }
 });

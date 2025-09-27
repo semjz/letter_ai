@@ -1,22 +1,9 @@
 # Copyright (c) 2025, saman and Contributors
 # See license.txt
 
-# import frappe
-from frappe.tests import IntegrationTestCase
+# .../doctype/letter_ai/test_letter_ai.py
+from frappe.tests.utils import FrappeTestCase
 
-
-# On IntegrationTestCase, the doctype test records and all
-# link-field test record dependencies are recursively loaded
-# Use these module variables to add/remove to/from that list
-EXTRA_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
-IGNORE_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
-
-
-
-class IntegrationTestletter_ai(IntegrationTestCase):
-	"""
-	Integration tests for letter_ai.
-	Use this class for testing interactions between multiple components.
-	"""
-
-	pass
+class TestLetterAI(FrappeTestCase):
+    def test_placeholder(self):
+        self.assertTrue(True)

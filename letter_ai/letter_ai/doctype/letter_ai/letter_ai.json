@@ -68,8 +68,7 @@
    "fieldname": "prompt",
    "fieldtype": "Text",
    "in_list_view": 1,
-   "label": "prompt",
-   "reqd": 1
+   "label": "prompt"
   },
   {
    "fieldname": "generated_letter",
