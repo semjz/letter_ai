@@ -1,11 +1,8 @@
-import frappe
-import re
-from openai import OpenAI
-from datetime import date
-from frappe.utils.pdf import get_pdf
-from jinja2 import Environment, FileSystemLoader
 import os
-
+import re
+import frappe
+from jinja2 import Environment, FileSystemLoader
+from openai import OpenAI
 
 frappe.utils.logger.set_log_level("DEBUG")
 logger = frappe.logger("api", allow_site=True, file_count=50)
@@ -13,103 +10,133 @@ logger = frappe.logger("api", allow_site=True, file_count=50)
 TEMPLATE_PATH = os.path.join(frappe.get_app_path("letter_ai"), "templates", "letters")
 env = Environment(
     loader=FileSystemLoader(TEMPLATE_PATH),
-    autoescape=False,  # we don't want HTML escaping in plain text letters
+    autoescape=False,
     trim_blocks=True,
-    lstrip_blocks=True
+    lstrip_blocks=True,
 )
 
-def render_template(file_name, data):
-    tpl = env.get_template(file_name)
-    return tpl.render(**data)
+def _sj(v):  # safe strip
+    return (v or "").strip()
 
+def _parse_runtime(runtime_values) -> dict:
+    if not runtime_values:
+        return {}
+    if isinstance(runtime_values, dict):
+        return runtime_values
+    try:
+        return frappe.parse_json(runtime_values) or {}
+    except Exception:
+        logger.exception("Failed to parse runtime_values; using empty dict")
+        return {}
+
+def _render(template_file: str, data: dict) -> str:
+    return env.get_template(template_file).render(**data)
+
+def _render_and_save(docname: str, template_file: str, data: dict) -> str:
+    letter = _render(template_file, data)
+    doc = frappe.get_doc("letter_ai", docname)
+    doc.reload()
+    doc.db_set("generated_letter", letter, notify=True, commit=True)
+    return letter
+
+# ---------------- Registry for template-backed letters ----------------
+# Each entry defines:
+# - template: Jinja template file
+# - fields:   { persian_placeholder: "incoming_payload_key" }
+# - required: a subset of payload keys that must be present (optional)
+TEMPLATE_REGISTRY = {
+    "bargiri": {
+        "template": "bargiri_letter.j2",
+        "fields": {
+            "طرف_قرارداد": "contract_party",
+            "مرجع": "authority",
+            "نوع_پسماند": "waste_type",
+            "دوره": "period",
+            "تاریخ_شروع": "start_date",
+            "تاریخ_پایان": "end_date",
+        },
+        # "required": {"contract_party", "waste_type"}  # uncomment if you want validation
+    },
+    "govahi": {
+        "template": "govahi_letter.j2",
+        "fields": {
+            "عنوان_جنسیتی": "gender",
+            "نام": "name",
+            "نام_پدر": "father_name",
+            "کد_ملی": "national_code",
+            "مدرک": "study_level",
+            "رشته": "major",
+            "گرایش": "specialize",
+            "دانشگاه": "uni",
+            "از_تاریخ1": "from_date1",
+            "تا_تاریخ1": "to_date1",
+            "از_تاریخ2": "from_date2",
+            "شرکت": "company",
+            "سمت": "post",
+            "مرجع": "to",
+        },
+    },
+    "moarefi": {
+        "template": "moarefi_letter.j2",
+        "fields": {
+            "عنوان_جنسیتی": "gender",
+            "نام": "name",
+            "کد_ملی": "national_code",
+            "امور": "duty",
+        },
+    },
+    "gozaresh": {
+        "template": "gozaresh_letter.j2",
+        "fields": {
+            "نام_گزارش": "report_name",
+            "تاریخ_گزارش": "report_date",
+        },
+    },
+}
+
+def _build_context(template_key: str, payload: dict) -> tuple[str, dict]:
+    cfg = TEMPLATE_REGISTRY.get(template_key)
+    if not cfg:
+        frappe.throw(f"Unknown template key: {template_key}")
+    fields = cfg["fields"]
+    data = { persian: _sj(payload.get(in_key)) for persian, in_key in fields.items() }
+
+    # Optional: enforce required payload keys if you want strictness
+    req = set(cfg.get("required", []))
+    if req:
+        missing = [k for k in req if _sj(payload.get(k)) == ""]
+        if missing:
+            frappe.throw(f"Missing required fields: {', '.join(missing)}")
+
+    return cfg["template"], data
+
+@frappe.whitelist()
+def generate_from_template(docname: str, template_key: str, runtime_values=None) -> str:
+    """
+    One generic endpoint for all simple template-backed letters.
+    template_key must be one of TEMPLATE_REGISTRY keys: bargiri|govahi|moarefi|gozaresh
+    """
+    payload = _parse_runtime(runtime_values)
+    logger.info("generate_from_template key=%s payload=%s", template_key, payload)
+    template_file, data = _build_context(template_key, payload)
+    return _render_and_save(docname, template_file, data)
 
 @frappe.whitelist()
 def generate_bargiri_letter(docname, runtime_values):
-    logger.info("runtime_values raw=%r type=%s", runtime_values, type(runtime_values).__name__)
-    rv = frappe.parse_json(runtime_values) if runtime_values else {}
-    if rv is None:
-        rv = {}
-
-    data = {
-        "طرف_قرارداد": rv.get("contract_party").strip(),
-        "مرجع": rv.get("authority").strip(),
-        "نوع_پسماند": rv.get("waste_type").strip(),
-        "دوره": rv.get("period").strip(),
-        "تاریخ_شروع": rv.get("start_date", "").strip(),
-        "تاریخ_پایان": rv.get("end_date", "").strip(),
-    }
-
-
-    letter = render_template("bargiri_letter.j2", data)
-    doc = frappe.get_doc(doctype="letter_ai", name=docname)
-    doc.reload()
-    doc.db_set("generated_letter", letter, notify=True, commit=True)
-
-    return letter
-
+    return generate_from_template(docname, "bargiri", runtime_values)
 
 @frappe.whitelist()
 def generate_govahi_letter(docname, runtime_values):
-    rv = frappe.parse_json(runtime_values) if runtime_values else {}
-    if rv is None:
-       rv = {}
-    logger.info("runtime_values raw=%r type=%s",
-    runtime_values, type(runtime_values).__name__)
-    data = {
-      "عنوان_جنسیتی": rv.get("gender").strip(),
-      "نام":rv.get("name").strip(),
-      "نام_پدر": rv.get("father_name").strip(),
-      "کد_ملی": rv.get("national_code").strip(),
-      "مدرک": rv.get("study_level").strip(),
-      "رشته": rv.get("major").strip(),
-      "گرایش": rv.get("specialize").strip(),
-      "دانشگاه": rv.get("uni").strip(),
-      "از_تاریخ1": rv.get("from_date1").strip(),
-      "تا_تاریخ1": rv.get("to_date1", "").strip(),
-      "از_تاریخ2": rv.get("from_date2", "").strip(),
-      "شرکت": rv.get("company", "").strip(),
-      "سمت": rv.get("post").strip(),
-      "مرجع": rv.get("to").strip(),
-    }
-
-    letter = render_template("govahi_letter.j2", data)
-    doc = frappe.get_doc(doctype="letter_ai", name=docname)
-    doc.reload()
-    doc.db_set("generated_letter", letter, notify=True, commit=True)
-
+    return generate_from_template(docname, "govahi", runtime_values)
 
 @frappe.whitelist()
 def generate_moarefi_letter(docname, runtime_values):
-    logger.info("runtime_values raw=%r type=%s",
-    runtime_values, type(runtime_values).__name__)
-    rv = frappe.parse_json(runtime_values) if runtime_values else {}
-    if rv is None:
-        rv = {}
-    data = {
-            "عنوان_جنسیتی": rv.get("gender").strip(),
-            "نام": rv.get("name").strip(),
-            "کد_ملی": rv.get("national_code").strip(),
-            "امور": rv.get("duty").strip()
-           }
-
-    letter = render_template("moarefi_letter.j2", data)
-    doc = frappe.get_doc(doctype="letter_ai", name=docname)
-    doc.reload()
-    doc.db_set("generated_letter", letter, notify=True, commit=True)
+    return generate_from_template(docname, "moarefi", runtime_values)
 
 @frappe.whitelist()
 def generate_gozaresh_letter(docname, runtime_values):
-    rv = frappe.parse_json(runtime_values) if runtime_values else {}
-    if rv is None:
-        rv = {}
-    data = {
-            "نام_گزارش": rv.get("report_name").strip(),
-            "تاریخ_گزارش": rv.get("report_date".strip())
-	   }
-    letter = render_template("gozaresh_letter.j2", data)
-    doc = frappe.get_doc(doctype="letter_ai", name=docname)
-    doc.reload()
-    doc.db_set("generated_letter", letter, notify=True, commit=True)
+    return generate_from_template(docname, "gozaresh", runtime_values)
+
 
 @frappe.whitelist()
 def generate_letter(docname):

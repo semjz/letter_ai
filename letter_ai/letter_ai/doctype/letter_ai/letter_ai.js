@@ -1,4 +1,10 @@
 const hiddenTypes = ["گزارش", "معرفی", "بارگیری", "گواهی اشتغال به کار"];
+const TYPE_TO_KEY = {
+  "معرفی": "moarefi",
+  "گواهی اشتغال به کار": "govahi",
+  "بارگیری": "bargiri",
+  "گزارش": "gozaresh",
+};
 
 frappe.ui.form.on("letter_ai", {
    onload_post_render(frm){
@@ -126,30 +132,27 @@ function gozaresh_dialog(resolve, state){
 
 /** -------- Dialog for UI-only inputs -------- */
 function collect_runtime_values_if_needed(frm) {
-  if (!hiddenTypes.includes(frm.doc.letter_type)) {
-    return Promise.resolve({});
-  }
+  // Only template-backed types need UI-only runtime inputs
+  const key = TYPE_TO_KEY[frm.doc.letter_type];
+  if (!key) return Promise.resolve({});
 
   return new Promise((resolve) => {
     const state = { confirmed: false };
     let d;
-    if (frm.doc.letter_type === "معرفی"){
-      d = moarefi_dialog(resolve, state);
-    } else if (frm.doc.letter_type === "گواهی اشتغال به کار"){
-      d = govahi_dialog(resolve, state);
-    } else if (frm.doc.letter_type === "بارگیری"){
-      d = bargiri_dialog(resolve, state);
-    } else if (frm.doc.letter_type === "گزارش"){
-      d = gozaresh_dialog(resolve, state);
+
+    switch (key) {
+      case "moarefi":  d = moarefi_dialog(resolve, state); break;
+      case "govahi":   d = govahi_dialog(resolve, state); break;
+      case "bargiri":  d = bargiri_dialog(resolve, state); break;
+      case "gozaresh": d = gozaresh_dialog(resolve, state); break;
+      default: resolve(null); return;
     }
-    if (!d) {
-      resolve(null);
-      return;
-    }
+
     d.onhide = () => { if (!state.confirmed) resolve(null); };
     d.show();
   });
 }
+
 
 /** ---------------- Buttons ---------------- **/
 function addGenerateLetterButton(frm) {
@@ -165,51 +168,35 @@ function addGenerateLetterButton(frm) {
       return;
     }
 
-    frappe.msgprint({
-      title: __("ورودی‌ها"),
-      indicator: "blue",
-      message: `<pre>${JSON.stringify(runtime_values, null, 2)}</pre>`
-    });
-
     try {
-      let method = "";
-      let args = { docname: frm.doc.name, runtime_values: runtime_values };
-      if (frm.doc.letter_type === "معرفی"){
-        method = 'letter_ai.api.letter_ai.generate_moarefi_letter';
-      } else if (frm.doc.letter_type === "گواهی اشتغال به کار"){
-        method = 'letter_ai.api.letter_ai.generate_govahi_letter';
-      } else if (frm.doc.letter_type === "بارگیری"){
-        method = 'letter_ai.api.letter_ai.generate_bargiri_letter';
-      } else if (frm.doc.letter_type === "گزارش"){
-        method = 'letter_ai.api.letter_ai.generate_gozaresh_letter';
-      } else {
-        method = 'letter_ai.api.letter_ai.generate_letter';
-        args = {
-          docname: frm.doc.name,
-          type: frm.doc.letter_type,
-          tone: frm.doc.tone_of_writing,
-          rec: frm.doc.recipient_company,
-          ref_let: frm.doc.ref_letter,
-          ref_date: frm.doc.ref_date,
-          attach: frm.doc.attachments
-        };
-      }
+      const key = TYPE_TO_KEY[frm.doc.letter_type];
+      const method = key
+        ? 'letter_ai.api.letter_ai.generate_from_template'
+        : 'letter_ai.api.letter_ai.generate_letter';
 
-      await frappe.call({
-        method: method,
-        args: args,
+      const args = key
+        ? { docname: frm.doc.name, template_key: key, runtime_values }
+        : { docname: frm.doc.name };
+
+      const r = await frappe.call({
+        method,
+        args,
         freeze: true,
         freeze_message: __('در حال تولید نامه… لطفاً صبر کنید.')
       });
+
+      if (r && r.message) frm.doc.generated_letter = r.message;
 
       await frm.reload_doc();
       frm.toggle_display('generated_letter', !!frm.doc.generated_letter);
       frappe.show_alert({ message: __('نامه تولید شد'), indicator: 'green' });
     } catch (e) {
       frappe.msgprint(__('Error: {0}', [e.message || e]));
+      // optional console.error(e);
     }
   });
 }
+
 
 function addRegenerateButton(frm) {
   frm.add_custom_button(__('Regenerate with Edits'), async () => {

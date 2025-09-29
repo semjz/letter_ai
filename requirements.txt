@@ -1,0 +1,4 @@
+jdatetime>=4.1.2
+openai>=1.0.0
+jinja2
+
