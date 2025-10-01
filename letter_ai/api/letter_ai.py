@@ -167,7 +167,7 @@ def generate_letter(docname):
     """
     logger.info("generate letter" + prompt)
     response = client.chat.completions.create(
-     model="ft:gpt-4.1-mini-2025-04-14:caspian-industry-era:letter-ai-draft3:C6GPtfne",
+     model="gpt-4.1-mini-2025-04-14",
      messages=[
         {"role": "system", "content": "You generate a letter title and the main body ONLY. Do NOT include date, recipient/sender blocks, greetings, or signatures."},
         {"role": "user", "content": prompt}

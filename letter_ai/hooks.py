@@ -11,6 +11,8 @@ doc_events = {
     }
 }
 
+after_migrate = ["letter_ai.setup.ensure_letter_ai_workflow"]
+
 # Apps
 # ------------------
 
