@@ -28,6 +28,11 @@ class letter_ai(Document):
         if self.letter_type not in NO_PROMPT_TYPES and not (self.prompt or "").strip():
             frappe.throw(_("Prompt is required for letter type: {0}").format(self.letter_type))
 
+    def before_insert(self):
+        # Ensure workflow starts at Draft so transitions (Submit) are visible
+        if not getattr(self, "workflow_state", None):
+            self.workflow_state = "Draft"
+
     def before_save(self):
         # Mutations/normalization
         jalali_text = (self.ref_date_djalali or "").strip()
