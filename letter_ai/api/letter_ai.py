@@ -3,6 +3,8 @@ import re
 import frappe
 from jinja2 import Environment, FileSystemLoader
 from openai import OpenAI
+from frappe import _
+from frappe.model.workflow import get_workflow
 
 frappe.utils.logger.set_log_level("DEBUG")
 logger = frappe.logger("api", allow_site=True, file_count=50)
@@ -38,6 +40,24 @@ def _render_and_save(docname: str, template_file: str, data: dict) -> str:
     doc.reload()
     doc.db_set("generated_letter", letter, notify=True, commit=True)
     return letter
+
+def _get_current_wf_state(doc):
+    doc.reload()
+    wf = get_workflow(doc.doctype)
+    if not wf or not wf.workflow_state_field:
+        return None
+    return doc.get(wf.workflow_state_field)
+
+def _assert_can_generate_soft(doc):
+    if doc.docstatus != 0:
+        return False, _("Only allowed for Draft documents.")
+
+    allowed_states = {"Draft"}  # keep in sync with client
+    wf_state = _get_current_wf_state(doc)
+    logger.info("wf_state=%s", wf_state)
+    if wf_state and wf_state not in allowed_states:
+        return False, _("Not allowed in workflow state: {0}").format(wf_state)
+    return True, None
 
 # ---------------- Registry for template-backed letters ----------------
 # Each entry defines:
@@ -116,8 +136,12 @@ def generate_from_template(docname: str, template_key: str, runtime_values=None)
     One generic endpoint for all simple template-backed letters.
     template_key must be one of TEMPLATE_REGISTRY keys: bargiri|govahi|moarefi|gozaresh
     """
+    doc = frappe.get_doc("letter_ai", docname)
+    ok, why = _assert_can_generate_soft(doc)
+    logger.info("ok=%s, why=%s", ok, why)
+    if not ok:
+        return {"status": "blocked", "message": why}
     payload = _parse_runtime(runtime_values)
-    logger.info("generate_from_template key=%s payload=%s", template_key, payload)
     template_file, data = _build_context(template_key, payload)
     return _render_and_save(docname, template_file, data)
 
@@ -143,6 +167,10 @@ def generate_letter(docname):
     api_key = frappe.get_conf().openai_api_key
     client = OpenAI(api_key=api_key)
     doc = frappe.get_doc(doctype="letter_ai", name=docname)
+    ok, why = _assert_can_generate_soft(doc)
+    logger.info("ok=%s, why=%s", ok, why)
+    if not ok:
+        return {"status": "blocked", "message": why}
     doc.reload()
 
      # Fetch Employee (Sender) Details
@@ -165,7 +193,7 @@ def generate_letter(docname):
       {doc.prompt}
 
     """
-    logger.info("generate letter" + prompt)
+    # logger.info("generate letter" + prompt)
     response = client.chat.completions.create(
      model="gpt-4.1-mini-2025-04-14",
      messages=[
@@ -174,7 +202,7 @@ def generate_letter(docname):
      ]
     )
     content = remove_placeholders(response.choices[0].message.content)
-    logger.info(f"generate letter API response: {response}")
+    # logger.info(f"generate letter API response: {response}")
     doc.db_set("generated_letter", content, notify=True, commit=True)
     return content
 
@@ -183,6 +211,10 @@ def edit_letter(docname, type, tone, rec):
     api_key = frappe.get_conf().openai_api_key
     client = OpenAI(api_key=api_key)
     doc = frappe.get_doc(doctype="letter_ai", name=docname)
+    ok, why = _assert_can_generate_soft(doc)
+    logger.info("ok=%s, why=%s", ok, why)
+    if not ok:
+        return {"status": "blocked", "message": why}
     doc.reload()
 
     new_type, new_tone, new_rec = "", "", ""
@@ -200,7 +232,7 @@ def edit_letter(docname, type, tone, rec):
               """
 
 
-    logger.info("edit letter" + prompt)
+    # logger.info("edit letter" + prompt)
     response = client.chat.completions.create(
      model="ft:gpt-4.1-mini-2025-04-14:caspian-industry-era:letter-ai-draft3:C6GPtfne",
        messages=[
@@ -210,7 +242,7 @@ def edit_letter(docname, type, tone, rec):
        ]
     )
     content = remove_placeholders(response.choices[0].message.content)
-    logger.info(f"edit letter API response: {response}")
+    # logger.info(f"edit letter API response: {response}")
     doc.db_set("generated_letter", content, notify=True, commit=True)
     return content
 def remove_placeholders(text):

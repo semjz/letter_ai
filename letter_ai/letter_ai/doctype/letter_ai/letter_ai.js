@@ -185,7 +185,11 @@ function addGenerateLetterButton(frm) {
         freeze_message: __('در حال تولید نامه… لطفاً صبر کنید.')
       });
 
-      if (r && r.message) frm.doc.generated_letter = r.message;
+      if (r.message.status === 'blocked') {
+        return frappe.msgprint(r.message.message || __('Action not allowed.'));
+      }
+
+      frm.doc.generated_letter = r.message;
 
       await frm.reload_doc();
       frm.toggle_display('generated_letter', !!frm.doc.generated_letter);
@@ -206,7 +210,7 @@ function addRegenerateButton(frm) {
     }
 
     try {
-      await frappe.call({
+      r = await frappe.call({
         method: 'letter_ai.api.letter_ai.edit_letter',
         args: {
           docname: frm.doc.name,
@@ -220,6 +224,13 @@ function addRegenerateButton(frm) {
         freeze: true,
         freeze_message: __('در حال بازتولید نامه… لطفاً صبر کنید.')
       });
+
+      if (r.message.status === 'blocked') {
+        return frappe.msgprint(r.message.message || __('Action not allowed.'));
+      }
+
+      frm.doc.generated_letter = r.message;
+
 
       await frm.reload_doc();
       frm.toggle_display('generated_letter', !!frm.doc.generated_letter);

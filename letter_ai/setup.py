@@ -3,14 +3,14 @@ import frappe
 
 DOCTYPE = "letter_ai"
 
-# Only the two actions you use in this 3-state model
 ACTIONS = ["Submit", "Approve"]
-ROLES   = ["Employee", "HR Manager"]
+ROLES   = ["HR Manager", "Managing Director", "CEO"]  # Employee removed
 
 STATES  = [
-    {"name": "Draft",             "style": "Primary"},
-    {"name": "Pending Approval",  "style": "Warning"},
-    {"name": "Approved",          "style": "Success"},
+    {"name": "Draft",                "style": "Primary"},
+    {"name": "Pending MD Approval",  "style": "Warning"},
+    {"name": "Pending CEO Approval", "style": "Warning"},
+    {"name": "Approved",             "style": "Success"},
 ]
 
 def _get_or_create_docperm(doctype: str, role: str, permlevel: int = 0):
@@ -31,18 +31,29 @@ def _get_or_create_docperm(doctype: str, role: str, permlevel: int = 0):
     return dp
 
 def _ensure_perms():
-    # Employee: read, write, create
-    emp = _get_or_create_docperm(DOCTYPE, "Employee", 0)
-    emp.read = emp.write = emp.create = 1
-    emp.save(ignore_permissions=True)
-
-    # HR Manager: read, write, create, submit (needed for Approve transition which keeps docstatus=1)
+    # HR Manager: only own docs; can create; no submit
     hr = _get_or_create_docperm(DOCTYPE, "HR Manager", 0)
-    hr.read = hr.write = hr.create = 1
-    hr.submit = 1
+    hr.read = 1; hr.write = 1; hr.create = 1
+    hr.if_owner = 1
+    hr.submit = 0
     hr.save(ignore_permissions=True)
 
+    # Managing Director: can read/write all; can create; no submit (not final approver)
+    md = _get_or_create_docperm(DOCTYPE, "Managing Director", 0)
+    md.read = 1; md.write = 1; md.create = 1
+    md.submit = 0
+    md.if_owner = 0
+    md.save(ignore_permissions=True)
+
+    # CEO: can read/write all; can create; has submit (final step makes docstatus=1)
+    ceo = _get_or_create_docperm(DOCTYPE, "CEO", 0)
+    ceo.read = 1; ceo.write = 1; ceo.create = 1
+    ceo.submit = 1
+    ceo.if_owner = 0
+    ceo.save(ignore_permissions=True)
+
     frappe.clear_cache(doctype=DOCTYPE)
+
 
 def _ensure_action(name: str):
     if not frappe.db.exists("Workflow Action Master", name):
@@ -104,18 +115,40 @@ def ensure_letter_ai_workflow():
     wf.is_active = 1
     wf.workflow_state_field = "workflow_state"
 
-    # Draft(0) --Submit--> Pending Approval(1) --Approve--> Approved(1)
+    # Who may edit in each state (editing still needs DocPerm write)
     wf.set("states", [
-        {"state": "Draft",            "doc_status": 0, "allow_edit": "Employee"},
-        {"state": "Pending Approval", "doc_status": 0, "allow_edit": "HR Manager"},
-        {"state": "Approved",         "doc_status": 1, "allow_edit": "HR Manager"},
+        {"state": "Draft",                "doc_status": 0, "allow_edit": "HR Manager"},
+        {"state": "Pending MD Approval",  "doc_status": 0, "allow_edit": "Managing Director"},
+        {"state": "Pending CEO Approval", "doc_status": 0, "allow_edit": "CEO"},
+        {"state": "Approved",             "doc_status": 1, "allow_edit": "CEO"},  # or leave empty to make read-only
     ])
 
     wf.set("transitions", [
-        {"state": "Draft",            "action": "Submit",  "next_state": "Pending Approval", "allowed": "Employee"},
-        {"state": "Draft",            "action": "Submit",  "next_state": "Pending Approval", "allowed": "HR Manager"},
-        {"state": "Pending Approval", "action": "Approve", "next_state": "Approved",         "allowed": "HR Manager"},
+        # HR creates & submits own letter -> MD step
+        {"state": "Draft", "action": "Submit",  "next_state": "Pending MD Approval",  "allowed": "HR Manager"},
+
+        # MD can start their own letter, or pick up a Draft -> MD step
+        {"state": "Draft", "action": "Submit",  "next_state": "Pending MD Approval",  "allowed": "Managing Director"},
+
+        # CEO can start and SKIP MD (fast-track) — Scenario A
+        {"state": "Draft", "action": "Submit",  "next_state": "Pending CEO Approval", "allowed": "CEO"},
+
+        # Or CEO can take the MD step too (do both approvals) — Scenario B (step 1 of 2)
+        {"state": "Draft", "action": "Submit",  "next_state": "Pending MD Approval",  "allowed": "CEO"},
+
+        # MD approves -> CEO step (normal route)
+        {"state": "Pending MD Approval", "action": "Approve", "next_state": "Pending CEO Approval", "allowed": "Managing Director"},
+
+        # CEO is allowed to perform the MD approval step as well — Scenario B (step 2 of 2)
+        {"state": "Pending MD Approval", "action": "Approve", "next_state": "Pending CEO Approval", "allowed": "CEO"},
+
+        # Final: CEO approves -> Approved (doc_status=1; requires CEO.submit=1)
+        {"state": "Pending CEO Approval", "action": "Approve", "next_state": "Approved", "allowed": "CEO"},
+
+        # (Optional) Ultra fast-track if you want CEO to jump straight from MD step to Approved in one click:
+        # {"state": "Pending MD Approval", "action": "Approve", "next_state": "Approved", "allowed": "CEO"},
     ])
+
 
     wf.save(ignore_permissions=True)
     frappe.db.commit()
