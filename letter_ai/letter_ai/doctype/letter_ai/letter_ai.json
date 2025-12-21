@@ -5,6 +5,7 @@
  "creation": "2025-08-09 01:47:19.170151",
  "doctype": "DocType",
  "engine": "InnoDB",
+ "is_submittable": 1,
  "field_order": [
   "letter_name",
   "letter_type",
