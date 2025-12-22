@@ -17,6 +17,38 @@ env = Environment(
     lstrip_blocks=True,
 )
 
+# ---- Role names (change only if your roles are named differently) ----
+ROLE_CEO = "CEO"
+ROLE_LETTER = "Letter Generator"
+
+
+def _can_generate(user: str) -> bool:
+    roles = frappe.get_roles(user)
+    return (ROLE_CEO in roles) or (ROLE_LETTER in roles)
+
+
+def _get_employee_for_user(user: str):
+    emp_name = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    return frappe.get_doc("Employee", emp_name) if emp_name else None
+
+
+def _resolve_sender_designation(user: str) -> str:
+    """
+    Strict rule:
+      1) If user has an Employee -> use Employee.designation (fallback 'employee')
+      2) Else if user has CEO role -> 'CEO'
+      3) Else -> ''
+    """
+    emp = _get_employee_for_user(user)
+    if emp:
+        return (emp.designation or "").strip() or "employee"
+
+    if ROLE_CEO in frappe.get_roles(user):
+        return "CEO"
+
+    return ""
+
+
 def _sj(v):  # safe strip
     return (v or "").strip()
 
@@ -138,71 +170,62 @@ def generate_from_template(docname: str, template_key: str, runtime_values=None)
     """
     doc = frappe.get_doc("letter_ai", docname)
     ok, why = _assert_can_generate_soft(doc)
-    logger.info("ok=%s, why=%s", ok, why)
     if not ok:
         return {"status": "blocked", "message": why}
     payload = _parse_runtime(runtime_values)
     template_file, data = _build_context(template_key, payload)
     return _render_and_save(docname, template_file, data)
 
-@frappe.whitelist()
-def generate_bargiri_letter(docname, runtime_values):
-    return generate_from_template(docname, "bargiri", runtime_values)
 
 @frappe.whitelist()
-def generate_govahi_letter(docname, runtime_values):
-    return generate_from_template(docname, "govahi", runtime_values)
+def generate_letter(docname: str):
+    user = frappe.session.user
 
-@frappe.whitelist()
-def generate_moarefi_letter(docname, runtime_values):
-    return generate_from_template(docname, "moarefi", runtime_values)
+    # Role gate for generation
+    if not _can_generate(user):
+        return {"status": "blocked", "message": _("Not allowed to generate letters.")}
 
-@frappe.whitelist()
-def generate_gozaresh_letter(docname, runtime_values):
-    return generate_from_template(docname, "gozaresh", runtime_values)
+    # Load document
+    doc = frappe.get_doc("letter_ai", docname)
 
-
-@frappe.whitelist()
-def generate_letter(docname):
-    api_key = frappe.get_conf().openai_api_key
-    client = OpenAI(api_key=api_key)
-    doc = frappe.get_doc(doctype="letter_ai", name=docname)
+    # Your existing soft authorization gate
     ok, why = _assert_can_generate_soft(doc)
-    logger.info("ok=%s, why=%s", ok, why)
+    # logger.info("ok=%s, why=%s", ok, why)
     if not ok:
         return {"status": "blocked", "message": why}
+
     doc.reload()
 
-     # Fetch Employee (Sender) Details
-    sender = frappe.get_doc("Employee", doc.sender)  # Assuming doc.sender is the employee link
-    sender_name = sender.employee_name
-    sender_designation = sender.designation
-    sender_company = sender.company  # Company the employee works for
-    sender_address = sender.current_address or "Address not provided"  # Default if no address provided
-    sender_email = sender.personal_email
+    # Safety net (company should be set by controller before_insert)
+    if not getattr(doc, "company", None):
+        return {"status": "blocked", "message": _("Company is missing on the document.")}
 
-    # Fetch Company (Recipient) Details
-    recipient_company = frappe.get_doc("Company", doc.recipient_company)  # Assuming doc.receiver is the company link
-    recipient_company_name = recipient_company.company_name
-    recipient_company_owner = recipient_company.owner
-    recipient_company_description = recipient_company.company_description or "No description available"
-    # Constructing the prompt with dynamic data from both Employee and Company
+    sender_designation = _resolve_sender_designation(user)
+
     prompt = f"""
-      type:{doc.letter_type}
-      tone:{doc.tone_of_writing}
-      {doc.prompt}
+type:{doc.letter_type}
+tone:{doc.tone_of_writing}
+company:{doc.company}
+sender_designation:{sender_designation}
 
-    """
-    # logger.info("generate letter" + prompt)
+{doc.prompt}
+"""
+
+    api_key = frappe.get_conf().openai_api_key
+    client = OpenAI(api_key=api_key)
+
     response = client.chat.completions.create(
-     model="gpt-4.1-mini-2025-04-14",
-     messages=[
-        {"role": "system", "content": "You generate a letter title and the main body ONLY. Do NOT include date, recipient/sender blocks, greetings, or signatures."},
-        {"role": "user", "content": prompt}
-     ]
+        model="gpt-4.1-mini-2025-04-14",
+        messages=[
+            {
+                "role": "system",
+                "content": "You generate a letter title and the main body ONLY. Do NOT include date, recipient/sender blocks, greetings, or signatures.",
+            },
+            {"role": "user", "content": prompt},
+        ],
     )
+
     content = remove_placeholders(response.choices[0].message.content)
-    # logger.info(f"generate letter API response: {response}")
     doc.db_set("generated_letter", content, notify=True, commit=True)
     return content
 

@@ -175,8 +175,8 @@ function addGenerateLetterButton(frm) {
         : 'letter_ai.api.letter_ai.generate_letter';
 
       const args = key
-        ? { docname: frm.doc.name, template_key: key, runtime_values }
-        : { docname: frm.doc.name };
+        ? { docname: frm.doc.name, template_key: key, runtime_values}
+        : { docname: frm.doc.name};
 
       const r = await frappe.call({
         method,
