@@ -60,11 +60,11 @@ def _can_create_letter(user: str) -> bool:
     roles = _user_roles(user)
     return (ROLE_CEO in roles) or (ROLE_LETTER in roles)
 
-def _get_employee_company(user: str) -> str | None:
+def _get_employee_company() -> str | None:
     """
     Employee.user_id must link to User for this to work.
     """
-    return frappe.db.get_value("Employee", {"user_id": user}, "company")
+    return frappe.db.get_value("Employee", "company")
 
 
 # ----------------------------
@@ -126,12 +126,12 @@ def _assign_company_on_insert(doc: Document, user: str) -> None:
         return
 
     if _is_ceo(user):
-        if not _strip(getattr(doc, "company", "")):
+        if not _strip(getattr(doc, "sender_company", "")):
             frappe.throw(_("Company is required for CEO. Please choose a company."))
         return
 
     # Non-CEO: force company from Employee
-    emp_company = _get_employee_company(user)
+    emp_company = _get_employee_company()
     if not emp_company:
         frappe.throw(_("Only employees can create letters (no Employee linked to this user)."))
     doc.company = emp_company
