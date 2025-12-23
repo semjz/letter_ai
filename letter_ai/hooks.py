@@ -11,6 +11,21 @@ doc_events = {
     }
 }
 
+fixtures = [
+  # role (optional if you also create it elsewhere)
+  {"dt": "Role", "filters": [["name", "in", ["Letter Generator"]]]},
+
+  # permissions (this is the important part)
+  {
+    "dt": "Custom DocPerm",
+    "filters": [
+      ["parent", "=", "letter_ai"],          # parent = DocType name
+      ["role", "in", ["CEO", "Letter Generator"]],
+    ],
+  },
+]
+
+
 after_migrate = ["letter_ai.setup.ensure_letter_ai_workflow"]
 
 # Apps
